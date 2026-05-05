@@ -1,4 +1,3 @@
-[DESIGN_TEMPLATE.md](https://github.com/user-attachments/files/27382147/DESIGN_TEMPLATE.md)
 # DESIGN_TEMPLATE.md
 
 *Reusable scaffold for every feature `design-{feature-slug}.md` in this prototyping effort. Authoritative — copy and fill, do not restructure.*
