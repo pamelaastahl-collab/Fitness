@@ -15,6 +15,8 @@ import { AppLayout } from '@/components/shell/AppLayout'
 import HomeRoute from './HomeRoute'
 import { FeaturePlaceholder } from './FeaturePlaceholder'
 import { PermissionDenied } from './PermissionDenied'
+import { UserListRoute } from '@/features/user-admin/UserListRoute'
+import { UserProfileRoute } from '@/features/user-admin/UserProfileRoute'
 
 export function AppRoutes() {
   return (
@@ -62,15 +64,10 @@ export function AppRoutes() {
             />
           }
         />
+        <Route path="/people/directory" element={<UserListRoute />} />
         <Route
-          path="/people/directory"
-          element={
-            <FeaturePlaceholder
-              name="People Directory"
-              day={3}
-              description="Invite new staff (TenantMembership(INVITED) → on accept: AuthIdentifier + RoleAssignment). View directory of staff at the current scope."
-            />
-          }
+          path="/people/directory/:personId"
+          element={<UserProfileRoute />}
         />
         <Route
           path="/finance/charges"

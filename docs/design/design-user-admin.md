@@ -67,17 +67,67 @@ Admin User Management is the governance surface inside the Admin Console for con
 
 ## 6. Primary user flow
 
-*Filled in during build.*
+The canonical demo path — a Company/Security Admin invites a new Front Desk staff member, then the Roles tab demonstrates SoD + sole-admin enforcement.
+
+1. **Admin** lands on `/people/directory`. Header shows "{visible} of {total} people in this company, within your scope." Sidebar entry is gated to admin roles per FRD §3 (FRONT_DESK_STAFF removed from Day 2 placeholder).
+2. Admin types into search; results narrow at 3 chars, debounced. Filter chips for Role / Status / Location / Created allow combining facets. "Clear all" pill appears when any filter is active.
+3. Admin clicks **Invite user**. Dialog opens at step 1 (email).
+4. Admin types an email. After 300 ms idle, a duplicate check runs against `mockPersons`:
+   - **No match** → "Continue" enables, given/family-name fields appear.
+   - **Match without membership in this company** → blue alert "Email already in our platform" with the existing person's name; "Continue" goes to step 2 to add a role to the existing Person (single-write path).
+   - **Match with membership in this company** → blocking alert "Already a user in this company" with a deep-link to the existing profile; "Continue" disabled.
+5. Admin advances to step 2. Role select shows only roles the actor is permitted to assign (Location Manager: only Front Desk + Instructor). Privileged roles carry a "step-up" pill in the option label.
+6. Admin selects **Front Desk Staff** and a Location. A scope picker (`<Select>`) shows ACTIVE locations in this company. SoD pre-check runs on every change; if a conflict exists with this Person's existing roles, an `<Alert>` appears with the conflicting role named — submit button disables.
+7. Admin clicks **Send invite** (or **Add role** for the existing-person path). For non-privileged roles, the action commits directly. For privileged roles, the StepUpConfirmDialog opens with: amber header chip "Elevated action — step-up required", action label, impact bullets, required reason field (≥10 chars), and an amber "Confirm with elevated auth" button.
+8. On commit:
+   - **New person path:** `Person` is created (`person.created` audit), `TenantMembership(INVITED)` (`user.invited` audit), `RoleAssignment(ACTIVE)` (`role.assigned` audit), `InviteToken(PENDING)`. All four writes share a `correlation_id`. A wrapping `admin.user_invited` event references the membership_id with `step_up_token` if applicable. Toast: "Invite sent (simulated). Expires in 7 days."
+   - **Existing person path:** A single `RoleAssignment` is added; `admin.role_assigned` audit. Toast: "{Role} granted to {Name}."
+9. Directory list re-renders (the route subscribes to `useRoleAssignmentsStore` + `useTenantMembershipsStore`). The new person appears with `INVITED` status badge and a "Pending acceptance" inline label.
+10. Admin clicks the row → navigates to `/people/directory/:personId`. Header shows name, status, primary location. Tabs Overview · Roles · Sessions · Audit. The Pending Invite card on Overview offers **Resend invite** (revokes the old token, creates a new one with fresh 7-day TTL, audited as `admin.invite_resent`).
+11. On the **Roles** tab, the actor can Assign or Revoke. Revoke is disabled with a tooltip when (a) the actor's role doesn't permit revoking that target role, or (b) the target is the only `SECURITY_ADMIN` at COMPANY scope. The disabled affordance is the demo-load-bearing thing — the constraint is legible *before* the click. The Revoke dialog requires a reason ≥5 chars; on commit, `admin.role_revoked`.
+12. Switching dev users (Cmd+Shift+U) to a different role-persona changes the directory contents and the affordances. Auditor sees full list, no write buttons. Location Manager sees a smaller list and only Front Desk + Instructor in the role picker.
 
 ---
 
 ## 7. Key screens & states
 
-*Filled in during build. Working hypothesis: 2 routes + 1 multi-step modal.*
+### 7.1 `/people/directory` — User List (`UserListRoute`)
 
-- `/people/directory` — User List
-- `/people/directory/:personId` — User Profile (tabs: Overview, Roles, Sessions, Audit)
-- Invite modal (2 steps: email + duplicate check, then role + scope picker)
+- **Default:** Header with visible/total count, search input, filter chips, Export (disabled with tooltip — US-UM-017 deferred), Invite button (gated on capability), data table with rows for every Person + Membership in scope.
+- **Empty (no users in scope):** Dashed-border card with Users icon, copy "{Actor name}, you're seeing everyone you have authority over. Invite the first one to get started."
+- **Empty (filters active, zero matches):** Same card, copy "No users match your filters. Try adjusting filters." Plus a "Clear all filters" outline button.
+- **Search query <3 chars:** Inline amber notice "Search needs at least 3 characters." List remains rendered without query filter applied.
+- **Loading:** `UserListTable` accepts a `loading` prop and renders 6 skeleton rows. (Currently unused since the prototype is sync; kept for the eventual real fetch.)
+- **Permission-denied:** Actor with no list-capability → `Navigate` to `/no-access`. Sidebar entry is also hidden, so unauthorised actors don't normally reach the route.
+
+### 7.2 `/people/directory/:personId` — User Profile (`UserProfileRoute`)
+
+- **Header:** back-link to Directory, name with inline-edit pencil, status badge, "this is you" pill on self, contact row (email/phone via `MaskedField`, masked unless `users.read_contact` capability), Actions overflow menu (Deactivate / Delete disabled with deferred-story tooltips).
+- **Tabs:** Overview · Roles · Sessions · Audit (Audit tab visible only with `users.view_audit`).
+- **Overview tab:** Identity card (type, status, photo, DOB, minor pill, created/updated). Active roles card. Pending invite card (amber-tinted, only when an active token exists; offers Resend). Effective Permissions card (collapsible, emits `admin.effective_permissions_viewed` on first reveal).
+- **Roles tab:** Active-roles list. Each row: `RoleBadge` with scope label, granted-by + granted-at, optional reason code, "Sole admin" amber pill when applicable, Revoke button (disabled when actor lacks capability OR sole-admin guard fires). Assign Role button gated to actors with `assign_role.*` capability. Revoke modal with required reason ≥5 chars.
+- **Sessions tab:** List of mock Sessions with surface icon, auth method, established/last-active, status. Active sessions get Terminate button (gated on capability). Footer note flags the simulation.
+- **Audit tab:** Reverse-chrono list (latest 50 of N) of AuditEvents that touch this Person — as actor, as Person target, as role-assignment target, or as membership target. Each event shows event_type, actor, occurred_at, before/after JSON.
+- **Permission-denied (person not in scope):** `Navigate` to `/no-access`. Renders identically whether the personId is bogus or merely out-of-scope — the FRD's "404 vs 403" distinction is collapsed for the prototype.
+- **Self profile:** Same shell, but Edit Name and Actions overflow are suppressed. (Open question OQ-UM-5: where does self-profile editing live? Logged.)
+
+### 7.3 Invite User dialog (`InviteUserDialog`)
+
+- **Step 1 default:** Email input with mail icon. Below: dynamic alert depending on duplicate-check state (idle → no alert; checking → "Checking…"; reusable → blue alert with reusable-person name; blocked → red alert with deep-link to existing profile).
+- **Step 1 ready (no duplicate):** Given-name + family-name inputs appear. Continue enabled when both filled and email present.
+- **Step 1 ready (reusable):** Given/family inputs hidden — we'll reuse the existing Person.
+- **Step 2 default:** Role select with assignable-set filter, scope select when role requires non-COMPANY scope, SoD pre-check alert (red) when violated, privileged-role alert (yellow) when role triggers step-up.
+- **Step 2 SoD-blocked:** Submit disabled, alert names existing+proposed role.
+- **Step 2 step-up required:** Submit opens `StepUpConfirmDialog`; commit happens after dialog confirm.
+- **Submit success:** Dialog closes, toast confirms, list refreshes.
+- **Permission-denied:** Component returns `null` when actor lacks `users.invite` (additionally the trigger button isn't rendered in the list header).
+
+### 7.4 StepUpConfirmDialog (shared `ui-extension`)
+
+- **Default:** Amber-tinted "Elevated action" pill, action label, description, impact bullets, required reason textarea (≥10 chars), "Confirm with elevated auth" amber CTA.
+- **Reason invalid (<10 chars):** Confirm disabled.
+- **Confirm:** Synthesizes a `prototype-stepup-{uuid}` token, fires `onConfirm({step_up_token, reason})`, closes.
+- **Cancel:** Resets reason, closes.
 
 ---
 
@@ -89,15 +139,42 @@ N/A — Admin User Management does not commit immutable financial records. RoleA
 
 ## 9. Audit events emitted
 
-*Filled in during build. Expected set per FRD:*
+| event_type | Trigger | Allowlisted payload fields |
+|---|---|---|
+| `admin.user_list_viewed` | First mount of `/people/directory` per session | actor, scope, `result_count`, `filters_applied` (keys only — no PII values per FRD §FR US-UM-001) |
+| `admin.user_profile_viewed` | Mount of `/people/directory/:personId` for a visible person | actor, scope, `target_entity_id` (person_id) |
+| `admin.user_invited` | Successful invite submit (wraps the multi-write) | actor, scope, `target_entity_id` (membership_id), `correlation_id`, `after_value: { person_id, role_code, invite_token_id, step_up_token? }` |
+| `admin.invite_resent` | Resend on Pending Invite card | actor, scope, `target_entity_id` (new token_id), `correlation_id`, `after_value: { person_id, expires_at }` |
+| `admin.user_name_edited` | Name save in profile header | actor, scope, before/after `{given_name, family_name}` |
+| `admin.role_assigned` | Successful role-assign mutation (wraps the underlying `role.assigned` from the mocks) | actor, scope, `target_entity_id` (assignment_id), `after_value: { person_id, role_code, step_up_token?, reason? }` |
+| `admin.role_revoked` | Successful revoke from the Roles tab | actor, scope, `target_entity_id` (assignment_id), before/after `{role_code, status}` plus reason |
+| `admin.session_terminated` | Terminate button on Sessions tab | actor, scope, `target_entity_id` (session_id), before/after `{status}` plus reason |
+| `admin.effective_permissions_viewed` | First expand of the Effective Permissions panel | actor, scope, `target_entity_id` (person_id) |
 
-`admin.user_list_viewed`, `admin.user_profile_viewed`, `admin.user_invited`, `admin.invite_resent`, `admin.user_name_edited`, `admin.role_assigned`, `admin.role_revoked`, `admin.session_terminated`, `admin.effective_permissions_viewed`, `admin.user_export_generated`.
+**Not yet emitted** (deferred with their stories):
+- `admin.user_contact_edited` — US-UM-009
+- `admin.user_deactivated` — US-UM-012
+- `admin.user_deleted` (immutable, never-purge) — US-UM-013
+- `admin.user_export_generated` — US-UM-017
+
+The mock-store-level events (`person.created`, `user.invited`, `role.assigned`, `role.revoked`, `tenant_membership.activated`) still emit underneath the wrappers — feature-level emissions sit on top so the trail has a per-FRD-story granularity.
 
 ---
 
 ## 10. Microcopy decisions
 
-*Filled in during build.*
+- **Disabled-affordance tooltips name the upstream dependency**, not the story ID alone. Example: *"Deactivation cascades to memberships and bookings — available once those modules ship (US-UM-012)."* The story ID is the breadcrumb; the cause is the message.
+- **Step-up dialog header** is "Elevated action — step-up required" (uppercase pill, amber tint), distinct from any normal confirm. The confirm button copy is **"Confirm with elevated auth"** rather than "Confirm" so the elevated moment is unmistakable.
+- **Sole-admin guard tooltip:** *"Sole-admin protected — cannot revoke the only Security Admin."* Plus an inline "Sole admin" pill on the role row so the constraint is visible without hover.
+- **SoD violation alert:** Names *both* the existing role and the proposed role, e.g., *"This person already holds Finance Admin at this scope. Granting Security Admin would violate platform SoD policy."* The user shouldn't have to remember which pair is illegal.
+- **Duplicate-check copy** distinguishes three states explicitly:
+  - *"Already a user in this company"* (blocking) with deep-link to profile
+  - *"Email already in our platform"* (reusable, blue alert) — explains they aren't yet in *this* company
+  - silent (no-match)
+- **Pagination footer:** *"Pagination is in-memory for this prototype. Server-side pagination (page_size 25, max 100) is specified in FRD US-UM-001 §FR."* — honest about the prototype concession, references the FRD.
+- **Resend invite toast:** *"Invite resent (simulated). New token expires {date}."* — the parenthetical "simulated" is consistent across all simulated actions.
+- **Empty list (filters active):** *"No users match your filters."* — uses *match*, not *match your search*, since search is just one of several filter dimensions on the same screen.
+- **Empty list (no filters):** addresses the actor by given name, e.g. *"Leila, you're seeing everyone you have authority over."* — turns the empty state into a positive about scope rather than implying broken data.
 
 ---
 
@@ -119,6 +196,10 @@ Both are proposed for promotion to the design system *before* being slipped into
 - **2026-05-06**: Invite is a modal/sheet rather than a separate route. The two-step structure (US-UM-004 → US-UM-005) reflects the duplicate-check decision point, not a navigation transition.
 - **2026-05-06**: Roles tab on the User Profile owns assign/revoke for this prototype since Day 4's Roles feature was deferred. If/when Day-4 Roles lands a dedicated role-assignment surface, the Roles tab here may become a deep-link into that feature instead of a self-contained editor. Logged so future-me knows why both surfaces exist.
 - **2026-05-06**: Step-up is simulated via `<StepUpConfirmDialog>` with a required reason field. The prototype stamps a fake `step_up_token` on the resulting AuditEvent so the trail is complete-shaped, even though the token is not cryptographically real. The visible UI affordance is the load-bearing part for this week's stakeholder demo.
+- **2026-05-06**: Bootstrap actor stays Leila Patel (LOCATION_MANAGER at Auckland) — chosen on Day 2 to exercise scope-filtering out of the gate. Cost: she sees a smaller directory than a Company Admin would. Benefit: every demo opens with the scope-aware UI legible. Use Cmd+Shift+U → Sarah Chen (COMPANY_ADMIN) to see the unrestricted view.
+- **2026-05-06**: Roles tab on the Profile owns assign/revoke directly (instead of deep-linking to a separate "Roles" feature) because Day 4's Roles feature was deferred. When/if that feature lands, this Roles tab can either remain canonical for person-centric editing or become a deep-link wrapper — see OQ-UM-2.
+- **2026-05-06**: Audit emissions sit at *two* layers — feature-level (`admin.*` events emitted by `mutations.ts`) and store-level (`person.created`, `role.assigned`, etc. emitted inside the mock stores). This is intentional duplication for the prototype: the feature layer carries FRD-story granularity (per US-UM-NNN), while the store layer carries primitive-level facts. In production these would be one or the other; the prototype demonstrates both shapes.
+- **2026-05-06**: All scope-aware reads funnel through `queries.ts`, all writes through `mutations.ts`. Feature components do not import from `@/mocks` directly except for two cases where reactivity requires it (the route subscribes to specific stores so re-renders fire on mutation). This is the load-bearing rule for UUM-INVARIANT 4.
 
 ---
 

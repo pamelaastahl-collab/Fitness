@@ -26,6 +26,9 @@ const ROUTES = [
   '/offerings',
   '/people/roles',
   '/people/directory',
+  '/people/directory/p0000001-0000-0000-0000-000000000008', // Aroha Henare — visible to Leila
+  '/people/directory/p0000001-0000-0000-0000-000000000001', // Sarah Chen — out of Leila's scope, expect Navigate
+  '/people/directory/this-is-not-a-real-person',
   '/finance/charges',
   '/finance/refunds',
   '/finance/adjustments',
