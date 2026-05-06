@@ -479,6 +479,8 @@ In confirmations: Full name — "Jane Smith's membership will be cancelled"
 Avatars:          Initials if no photo — first + last initial, e.g. "JS"
 ```
 
+**Form labels for name fields:** Always use **"First name"** and **"Last name"** in user-facing UI — never "Given name" / "Family name", even though those are the underlying UUM field names (`given_name` / `family_name`). The data model and the label vocabulary are intentionally divorced: the schema uses internationally neutral terms because that's correct for a global identity primitive; the UI uses common-product-convention terms because that's what users expect to see. Same rule applies to any future name-collection surface (self-profile editing, member onboarding, guardian setup, etc.). If a feature has a reason to surface the schema names instead (e.g., an admin debug view), document the deviation in that feature's `design.md`.
+
 #### Error Messages
 ```
 Format:   Specific, human, actionable. Never blame the user.
