@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "smoke": "TSX_TSCONFIG_PATH=tsconfig.app.json tsx scripts/smoke-render.ts",
+    "seed:dump": "TSX_TSCONFIG_PATH=tsconfig.app.json tsx scripts/dump-seed.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
