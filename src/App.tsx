@@ -1,13 +1,10 @@
-import { Route, Routes } from 'react-router-dom'
 import { AppProviders } from '@/contexts'
-import HomeRoute from '@/routes/HomeRoute'
+import { AppRoutes } from '@/routes'
 
 function App() {
   return (
     <AppProviders>
-      <Routes>
-        <Route path="/" element={<HomeRoute />} />
-      </Routes>
+      <AppRoutes />
     </AppProviders>
   )
 }
