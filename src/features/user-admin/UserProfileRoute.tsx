@@ -27,6 +27,12 @@ import { ProfileOverviewTab } from './components/ProfileOverviewTab'
 import { ProfileRolesTab } from './components/ProfileRolesTab'
 import { ProfileSessionsTab } from './components/ProfileSessionsTab'
 import { ProfileAuditTab } from './components/ProfileAuditTab'
+import { EmergencyContactTab } from '@/features/member-profile/components/EmergencyContactTab'
+import { ConditionsTab } from '@/features/member-profile/components/ConditionsTab'
+import {
+  useEmergencyContactsStore,
+} from '@/features/member-profile/mockEmergencyContacts'
+import { useMemberConditionsStore } from '@/features/member-profile/mockConditions'
 
 export function UserProfileRoute() {
   const { personId } = useParams<{ personId: string }>()
@@ -41,6 +47,8 @@ export function UserProfileRoute() {
   useRoleAssignmentsStore((s) => s.assignments)
   usePersonsStore((s) => s.persons)
   useTenantMembershipsStore((s) => s.memberships)
+  useEmergencyContactsStore((s) => s.contacts)
+  useMemberConditionsStore((s) => s.conditions)
 
   const row = useMemo(() => {
     if (!personId) return undefined
@@ -67,6 +75,8 @@ export function UserProfileRoute() {
   if (!personId) return <Navigate to="/people/directory" replace />
   if (!row) return <Navigate to="/no-access" replace />
 
+  const isMember = row.person.person_type === 'MEMBER'
+
   return (
     <TooltipProvider delayDuration={150}>
       <div className="mx-auto w-full max-w-[var(--container-content)] p-6 md:p-8">
@@ -75,6 +85,12 @@ export function UserProfileRoute() {
         <Tabs defaultValue="overview">
           <TabsList variant="line" className="mb-4">
             <TabsTrigger value="overview">Overview</TabsTrigger>
+            {isMember && (
+              <>
+                <TabsTrigger value="emergency">Emergency</TabsTrigger>
+                <TabsTrigger value="conditions">Conditions</TabsTrigger>
+              </>
+            )}
             <TabsTrigger value="roles">Roles</TabsTrigger>
             <TabsTrigger value="sessions">Sessions</TabsTrigger>
             {caps.has('users.view_audit') && (
@@ -88,6 +104,16 @@ export function UserProfileRoute() {
               capabilities={caps}
             />
           </TabsContent>
+          {isMember && (
+            <>
+              <TabsContent value="emergency">
+                <EmergencyContactTab person={row.person} />
+              </TabsContent>
+              <TabsContent value="conditions">
+                <ConditionsTab person={row.person} />
+              </TabsContent>
+            </>
+          )}
           <TabsContent value="roles">
             <ProfileRolesTab person={row.person} assignments={row.roles} />
           </TabsContent>
