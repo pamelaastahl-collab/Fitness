@@ -68,7 +68,7 @@ export function ProfileHeader({ row, capabilities }: ProfileHeaderProps) {
           <div className="flex items-end gap-2">
             <div className="space-y-1">
               <label className="text-xs text-[color:var(--color-text-muted)]">
-                Given name
+                First name
               </label>
               <Input
                 value={givenName}
@@ -79,7 +79,7 @@ export function ProfileHeader({ row, capabilities }: ProfileHeaderProps) {
             </div>
             <div className="space-y-1">
               <label className="text-xs text-[color:var(--color-text-muted)]">
-                Family name
+                Last name
               </label>
               <Input
                 value={familyName}

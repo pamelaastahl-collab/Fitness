@@ -379,7 +379,7 @@ export function InviteUserDialog({
               {!isReusingExisting && (
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label htmlFor="invite-given">Given name</Label>
+                    <Label htmlFor="invite-given">First name</Label>
                     <Input
                       id="invite-given"
                       value={givenName}
@@ -387,7 +387,7 @@ export function InviteUserDialog({
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="invite-family">Family name</Label>
+                    <Label htmlFor="invite-family">Last name</Label>
                     <Input
                       id="invite-family"
                       value={familyName}
