@@ -1,16 +1,18 @@
 /**
  * TopBar.
  *
- * Persistent chrome above every route. Contains:
- *   - App logo + tenant name (shows current Company)
- *   - ScopePicker (current four-level hierarchy + cascading switcher)
- *   - Notification bell stub (count = audit events in last 24h, scope-filtered)
- *   - Avatar dropdown (profile, dev switcher, sign out)
+ * Persistent chrome above every route. Per style guide §Layout the top nav
+ * is 60px tall.
  *
- * RoleBadge for the current actor sits next to the avatar so the active role
- * at the active scope is always visible.
+ * Contents:
+ *   - App logo + tenant name (current Company)
+ *   - ScopePicker (full hierarchy + cascading switcher)
+ *   - Notification bell — count = audit events in last 24h, scope-filtered
+ *   - RoleBadge for the actor's primary role at the active scope
+ *   - Avatar dropdown (profile, dev switcher, sign out)
  */
 
+import { Bell, LogOut, UserCog } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,8 +57,6 @@ function pickPrimaryRole(
   scope_type: ScopeType,
 ): { role_code: RoleCode; scope_type: ScopeType } | undefined {
   if (assignments.length === 0) return undefined
-  // Prefer an assignment that matches the current scope's level. Fall back
-  // to the highest-precedence role at any scope.
   const matching = assignments.filter((a) => a.scope_type === scope_type)
   const pool = matching.length > 0 ? matching : assignments
   const sorted = [...pool].sort((a, b) => {
@@ -93,13 +93,18 @@ export function TopBar() {
   ).length
 
   return (
-    <header className="flex h-14 items-center gap-4 border-b border-[color:var(--color-border)] bg-[color:var(--color-surface-raised)] px-4">
-      <div className="flex items-center gap-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[color:var(--color-primary)] text-sm font-bold text-white">
+    <header className="flex h-[60px] shrink-0 items-center gap-4 border-b border-[color:var(--color-border)] bg-[color:var(--color-surface-raised)] px-6">
+      <div className="flex items-center gap-2.5">
+        <div
+          className="flex h-9 w-9 items-center justify-center rounded-md bg-[color:var(--color-primary)] font-display text-sm font-extrabold text-[color:var(--color-primary-foreground)]"
+          aria-hidden
+        >
           F
         </div>
         <div className="flex flex-col leading-tight">
-          <span className="text-sm font-semibold">FitFlow</span>
+          <span className="font-display text-sm font-bold tracking-tight">
+            FitFlow
+          </span>
           <span className="text-[11px] text-[color:var(--color-text-secondary)]">
             {scopedCompany.name}
           </span>
@@ -112,12 +117,12 @@ export function TopBar() {
 
       <div className="ml-auto flex items-center gap-3">
         <button
-          aria-label="Notifications"
-          className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--color-border)] hover:bg-[color:var(--color-surface)]"
+          aria-label={`Notifications — ${recentCount} in last 24h`}
+          className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-secondary)] transition-colors hover:bg-[color:var(--color-surface)] hover:text-[color:var(--color-text-primary)]"
         >
-          <span aria-hidden>🔔</span>
+          <Bell size={18} strokeWidth={1.75} />
           {recentCount > 0 && (
-            <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[color:var(--color-primary)] px-1 text-[10px] font-semibold text-white">
+            <span className="absolute -right-1 -top-1 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[color:var(--color-primary)] px-1 text-[10px] font-semibold text-[color:var(--color-primary-foreground)]">
               {recentCount > 99 ? '99+' : recentCount}
             </span>
           )}
@@ -129,9 +134,9 @@ export function TopBar() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-9 gap-2 rounded-full px-1.5">
-              <Avatar className="h-7 w-7">
-                <AvatarFallback className="bg-[color:var(--color-primary-light)] text-xs font-medium text-[color:var(--color-primary)]">
+            <Button variant="ghost" className="h-10 gap-2 rounded-full px-1.5">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="bg-[color:var(--color-primary-light)] text-xs font-semibold text-[color:var(--color-primary)]">
                   {initials(currentPerson.given_name, currentPerson.family_name)}
                 </AvatarFallback>
               </Avatar>
@@ -140,29 +145,36 @@ export function TopBar() {
               </span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-60">
             <DropdownMenuLabel>
               <div className="flex flex-col">
                 <span className="text-sm">
                   {currentPerson.given_name} {currentPerson.family_name}
                 </span>
                 {currentPerson.primary_email && (
-                  <span className="text-xs font-normal text-[color:var(--color-text-secondary)]">
+                  <span className="font-normal text-xs text-[color:var(--color-text-muted)]">
                     {currentPerson.primary_email}
                   </span>
                 )}
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled>Profile (placeholder)</DropdownMenuItem>
+            <DropdownMenuItem disabled className="text-[color:var(--color-text-muted)]">
+              Profile
+              <span className="ml-auto text-[10px] uppercase">soon</span>
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={openDevSwitcher}>
-              Dev: switch acting person…
-              <span className="ml-auto text-[10px] text-[color:var(--color-text-secondary)]">
+              <UserCog size={16} strokeWidth={1.75} />
+              <span>Switch acting person…</span>
+              <span className="ml-auto text-[10px] text-[color:var(--color-text-muted)]">
                 ⌘⇧U
               </span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={signOut}>Sign out</DropdownMenuItem>
+            <DropdownMenuItem onSelect={signOut}>
+              <LogOut size={16} strokeWidth={1.75} />
+              <span>Sign out</span>
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
