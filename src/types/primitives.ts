@@ -14,6 +14,13 @@
  *   - Polymorphic FKs (e.g. RoleAssignment.scope_id) carry their entity intent
  *     via the accompanying scope_type discriminator; we model them as plain UUIDs
  *     and rely on the discriminator at the application layer per UUM-INVARIANT 4.
+ *
+ * Open-question fill-ins for the prototype (per PRIMITIVE_RELATIONSHIPS.md §4):
+ *   - OQ-04 (no GuardianRelationship entity yet): deferred for this week.
+ *   - OQ-06 (no active_scope on Session): the prototype persists active scope in
+ *     ScopeContext + localStorage rather than mutating Session.
+ *   - OQ-13 (Department-scoped roles vs parent Location read): default is that
+ *     Department access implies read-only on the parent Location for nav purposes.
  */
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -223,11 +230,18 @@ export interface AuditEvent {
   actor_type: AuditActorType
   /** e.g. Person, RoleAssignment, Charge, Offering. */
   target_entity_type: string
-  target_entity_id: UUID
+  /**
+   * Polymorphic across all primitive entity types — use the raw string base
+   * since branded IDs (PersonId, ChargeId, LocationId, …) all extend string
+   * but are not interconvertible. The discriminator `target_entity_type`
+   * names which kind of ID is here.
+   */
+  target_entity_id: string
   company_id: CompanyId
   /** Null for global events. */
   scope_type?: ScopeType
-  scope_id?: UUID
+  /** Polymorphic over scope_type — see target_entity_id note. */
+  scope_id?: string
   occurred_at: IsoTimestamp
   /** SHA-256 of the event payload. For integrity verification. */
   payload_hash: Sha256Hex
@@ -317,6 +331,60 @@ export interface Department {
   name: string
   description?: string
   status: DepartmentStatus
+  created_at: IsoTimestamp
+}
+
+/**
+ * Address is referenced by Location.address_id. The OH spec defers full schema
+ * to an "Address & Geolocation Service" — this is a prototype-scope shape
+ * sufficient to render Locations and run scope/timezone resolution.
+ */
+export interface Address {
+  address_id: AddressId
+  line1: string
+  line2?: string
+  city: string
+  /** State / province / region. */
+  region: string
+  postal_code: string
+  /** ISO 3166-1 alpha-3. */
+  country_code: string
+  lat?: number
+  lng?: number
+}
+
+export type BankAccountConfigStatus = 'ACTIVE' | 'INACTIVE'
+
+/**
+ * BusinessEntity.bank_account_config_id points here. XPI-FIN-02 blocks Charge
+ * commit if the BE has no ACTIVE config. Full schema (PCI scope, processor
+ * keys, etc.) belongs in a payments primitive doc; the prototype tracks
+ * presence and status only.
+ */
+export interface BankAccountConfig {
+  bank_account_config_id: BankAccountConfigId
+  business_entity_id: BusinessEntityId
+  display_name: string
+  /** Last 4 digits of account number, for UI affordance only. */
+  last4?: string
+  status: BankAccountConfigStatus
+  created_at: IsoTimestamp
+}
+
+export type TaxConfigStatus = 'ACTIVE' | 'INACTIVE'
+
+/**
+ * BusinessEntity.default_tax_config_id points here. XPI-CAT-03 blocks
+ * Offering publish if the publication target's BE has no ACTIVE tax config.
+ * Prototype-scope: presence and country_code only.
+ */
+export interface TaxConfig {
+  tax_config_id: TaxConfigId
+  business_entity_id: BusinessEntityId
+  display_name: string
+  /** ISO 3166-1 alpha-3. Drives tax rate lookup by tax_category. */
+  country_code: string
+  status: TaxConfigStatus
   created_at: IsoTimestamp
 }
 
